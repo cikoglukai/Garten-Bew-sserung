@@ -141,8 +141,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final pumps = context.watch<AppState>().pumps;
-    final titleStyle = Theme.of(context).textTheme.titleMedium;
-    final bodyStyle = Theme.of(context).textTheme.bodySmall;
+    final theme = Theme.of(context);
+    final hintStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -160,147 +162,243 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ScrollConfiguration(
           behavior: const NoStretchScrollBehavior(),
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
-            // --- Section 1: Raspberry Pi connection (host/port/user/password) ---
-            Text('Raspberry Pi connection', style: titleStyle),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _host,
-              decoration: const InputDecoration(
-                labelText: 'Host / IP address',
-                hintText: '192.168.1.50',
-                border: OutlineInputBorder(),
+              // --- Section 1: Raspberry Pi connection (host/port/user/password) ---
+              _SettingsSection(
+                icon: Icons.dns_outlined,
+                title: 'Raspberry Pi connection',
+                children: [
+                  // Host takes the slack; the port sits narrow beside it.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextFormField(
+                          controller: _host,
+                          decoration: const InputDecoration(
+                            labelText: 'Host, IP or Tailscale name',
+                            hintText: '192.168.1.50 or my-pi.tailnet.ts.net',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.lan_outlined),
+                          ),
+                          validator: (v) =>
+                              (v == null || v.trim().isEmpty) ? 'Required' : null,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 1,
+                        child: TextFormField(
+                          controller: _port,
+                          decoration: const InputDecoration(
+                            labelText: 'Port',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _username,
+                    decoration: const InputDecoration(
+                      labelText: 'Username',
+                      hintText: 'pi',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _password,
+                    obscureText: _obscure,
+                    decoration: _obscuredField('Password', _obscure,
+                        () => setState(() => _obscure = !_obscure)),
+                  ),
+                ],
               ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _port,
-              decoration: const InputDecoration(
-                labelText: 'Port',
-                border: OutlineInputBorder(),
+              // --- Section 2: the command template + Test/Save actions ---
+              _SettingsSection(
+                icon: Icons.terminal,
+                title: 'Watering command',
+                subtitle:
+                    'Run on the Pi for each pump. Use {pin} for the GPIO pin '
+                    'and {duration} for the seconds.',
+                children: [
+                  TextFormField(
+                    controller: _command,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Command template',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Run on the Pi to stop a pump early. Use {pin} for the '
+                    'GPIO pin.',
+                    style: hintStyle,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _stopCommand,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Stop command template',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _testing ? null : _test,
+                          icon: _testing
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.wifi_tethering),
+                          label: const Text('Test'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _save,
+                          icon: const Icon(Icons.save),
+                          label: const Text('Save'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _username,
-              decoration: const InputDecoration(
-                labelText: 'Username',
-                hintText: 'pi',
-                border: OutlineInputBorder(),
+              // --- Section 3: weather (API key + city) + save-and-fetch ---
+              _SettingsSection(
+                icon: Icons.cloud_outlined,
+                title: 'Weather',
+                subtitle:
+                    'Shows current conditions and a watering hint. Get a free '
+                    'API key at openweathermap.org.',
+                children: [
+                  TextFormField(
+                    controller: _weatherApiKey,
+                    obscureText: _obscureApiKey,
+                    decoration: _obscuredField(
+                        'OpenWeather API key',
+                        _obscureApiKey,
+                        () =>
+                            setState(() => _obscureApiKey = !_obscureApiKey)),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _weatherCity,
+                    decoration: const InputDecoration(
+                      labelText: 'City',
+                      hintText: 'Munich,DE',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.location_city_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _saveAndRefreshWeather,
+                      icon: const Icon(Icons.cloud_sync),
+                      label: const Text('Save & fetch weather'),
+                    ),
+                  ),
+                ],
               ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _password,
-              obscureText: _obscure,
-              decoration: _obscuredField('Password', _obscure,
-                  () => setState(() => _obscure = !_obscure)),
-            ),
-            const SizedBox(height: 20),
-            // --- Section 2: the command template + Test/Save actions ---
-            Text('Watering command', style: titleStyle),
-            const SizedBox(height: 4),
-            Text(
-              'Run on the Pi for each pump. Use {pin} for the GPIO pin and '
-              '{duration} for the seconds.',
-              style: bodyStyle,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _command,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Command template',
-                border: OutlineInputBorder(),
+              // --- Section 4: one editable row per pump (name + GPIO pin) ---
+              _SettingsSection(
+                icon: Icons.water_drop_outlined,
+                title: 'Pumps',
+                subtitle: 'Name each pump and set its GPIO pin. '
+                    'Changes save automatically.',
+                children: [
+                  for (var i = 0; i < pumps.length; i++)
+                    _PumpSettingsTile(pump: pumps[i], index: i + 1),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Run on the Pi to stop a pump early. Use {pin} for the GPIO pin.',
-              style: bodyStyle,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _stopCommand,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Stop command template',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A titled card grouping a set of related settings fields, with an icon
+/// badge and an optional explanatory subtitle.
+class _SettingsSection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final List<Widget> children;
+
+  const _SettingsSection({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _testing ? null : _test,
-                    icon: _testing
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.wifi_tethering),
-                    label: const Text('Test connection'),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: theme.colorScheme.onPrimaryContainer,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _save,
-                    icon: const Icon(Icons.save),
-                    label: const Text('Save'),
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
             ),
-            const Divider(height: 40),
-            // --- Section 3: weather (API key + city) + save-and-fetch ---
-            Text('Weather', style: titleStyle),
-            const SizedBox(height: 4),
-            Text(
-              'Shows current conditions and a watering hint. Get a free API key '
-              'at openweathermap.org.',
-              style: bodyStyle,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _weatherApiKey,
-              obscureText: _obscureApiKey,
-              decoration: _obscuredField('OpenWeather API key', _obscureApiKey,
-                  () => setState(() => _obscureApiKey = !_obscureApiKey)),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _weatherCity,
-              decoration: const InputDecoration(
-                labelText: 'City',
-                hintText: 'Munich,DE',
-                border: OutlineInputBorder(),
+            if (subtitle != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                subtitle!,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _saveAndRefreshWeather,
-                icon: const Icon(Icons.cloud_sync),
-                label: const Text('Save & fetch weather'),
-              ),
-            ),
-            const Divider(height: 40),
-            // --- Section 4: one editable row per pump (name + GPIO pin) ---
-            Text('Pumps', style: titleStyle),
-            const SizedBox(height: 8),
-            ...pumps.map((p) => _PumpSettingsTile(pump: p)),
             ],
-          ),
+            const SizedBox(height: 16),
+            ...children,
+          ],
         ),
       ),
     );
@@ -312,14 +410,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
 /// no separate save step for pump edits.
 class _PumpSettingsTile extends StatelessWidget {
   final Pump pump;
-  const _PumpSettingsTile({required this.pump});
+  final int index;
+  const _PumpSettingsTile({required this.pump, required this.index});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Small number badge so the rows read as an ordered list of pumps.
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            child: Text(
+              '$index',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSecondaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             flex: 3,
             child: TextFormField(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/pump.dart';
@@ -69,12 +71,57 @@ class AppState extends ChangeNotifier {
   /// Last status message per pump, shown on its card.
   final Map<String, PumpStatus> _status = {};
 
+  /// Which pumps the next "Water all" run should include. null means "all
+  /// pumps" (the default); once the user deselects any, it becomes an explicit
+  /// id set. Reset back to null after each run so the selection is per-run.
+  Set<String>? _runSelection;
+
+  // --- Live SSH connectivity (driven by a background reachability poll) ---
+  /// Whether the Pi is currently reachable over SSH. The home screen shows a
+  /// red dot and disables every "start watering" button while this is false.
+  /// Starts false and flips true once a poll succeeds.
+  bool _connected = false;
+
+  /// Repeats the reachability check so the indicator and button-enabled state
+  /// stay current on their own. Cancelled in dispose().
+  Timer? _connectivityTimer;
+  static const _connectivityInterval = Duration(seconds: 15);
+
   // Read-only views the widgets use to render a single pump's live state.
   bool isWatering(String pumpId) => _watering.contains(pumpId);
   PumpStatus? statusFor(String pumpId) => _status[pumpId];
 
+  /// Whether the Pi is currently reachable. The UI gates the watering buttons
+  /// and the connection dot on this.
+  bool get connected => _connected;
+
   /// Whether any pump is currently watering. Disables the "Water all" button.
   bool get anyWatering => _watering.isNotEmpty;
+
+  /// Whether [pumpId] is included in the next "Water all" run. With no explicit
+  /// selection (the default) every pump is included.
+  bool isSelectedForRun(String pumpId) =>
+      _runSelection?.contains(pumpId) ?? true;
+
+  /// How many pumps the next run will water.
+  int get runSelectionCount => _runSelection?.length ?? pumps.length;
+
+  /// True when the run includes every pump (the default state).
+  bool get allSelectedForRun => runSelectionCount == pumps.length;
+
+  /// Toggles whether [pumpId] is part of the next run. Materialises the "all"
+  /// default into a concrete set on first deselect, and collapses back to the
+  /// null "all" state once everything is selected again.
+  void toggleRunSelection(String pumpId) {
+    final selection = _runSelection ?? pumps.map((p) => p.id).toSet();
+    if (selection.contains(pumpId)) {
+      selection.remove(pumpId);
+    } else {
+      selection.add(pumpId);
+    }
+    _runSelection = selection.length == pumps.length ? null : selection;
+    notifyListeners();
+  }
 
   /// When [pumpId] was last watered, or null if there's no record. History is
   /// newest-first, so the first match is the most recent.
@@ -107,6 +154,9 @@ class AppState extends ChangeNotifier {
     history = await _settings.loadHistory();
     loaded = true;
     notifyListeners();
+    // Begin polling SSH reachability so the connection dot and the watering
+    // buttons reflect the live state without the user doing anything.
+    _startConnectivityPolling();
     if (weatherConfig.isComplete) {
       // Fire-and-forget; the card shows its own loading/error state.
       refreshWeather();
@@ -118,6 +168,37 @@ class AppState extends ChangeNotifier {
     config = newConfig;
     await _settings.saveConfig(config);
     notifyListeners();
+    // Re-check reachability right away against the new connection details.
+    _startConnectivityPolling();
+  }
+
+  /// (Re)starts the background reachability poll: checks once now, then on a
+  /// fixed interval. Safe to call repeatedly — it cancels any prior timer.
+  void _startConnectivityPolling() {
+    _connectivityTimer?.cancel();
+    _checkConnection();
+    _connectivityTimer = Timer.periodic(
+      _connectivityInterval,
+      (_) => _checkConnection(),
+    );
+  }
+
+  /// One reachability probe. Marks the Pi unreachable when there's no complete
+  /// config; otherwise runs the lightweight test command and flips [_connected]
+  /// to its result. Only notifies when the value actually changes.
+  Future<void> _checkConnection() async {
+    final reachable =
+        config.isComplete && (await SshService.testConnection(config)).success;
+    if (_connected != reachable) {
+      _connected = reachable;
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _connectivityTimer?.cancel();
+    super.dispose();
   }
 
   /// Saves a new weather config; if it's now complete, fetch straight away.
@@ -278,9 +359,10 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Waters every pump that isn't already running, one after another so the
-  /// Pi only handles a single SSH session at a time. Iterates a copy so the
-  /// list can't change under us mid-loop.
+  /// Waters every selected pump that isn't already running, one after another
+  /// so the Pi only handles a single SSH session at a time. Iterates a copy so
+  /// the list can't change under us mid-loop. The per-run selection (see
+  /// [toggleRunSelection]) is reset to "all" once the sequence finishes.
   ///
   /// Hitting Stop on the running pump clears [_waterAllRunning], which breaks
   /// the loop so the sequence stops entirely instead of advancing to the next
@@ -289,11 +371,16 @@ class AppState extends ChangeNotifier {
     _waterAllRunning = true;
     for (final pump in List<Pump>.from(pumps)) {
       if (!_waterAllRunning) break;
+      // Skip pumps the user left out of this run's selection.
+      if (!isSelectedForRun(pump.id)) continue;
       if (!_watering.contains(pump.id)) {
         await water(pump);
       }
     }
     _waterAllRunning = false;
+    // The selection is per-run: reset to "all pumps" for the next time.
+    _runSelection = null;
+    notifyListeners();
   }
 
   /// One-off connectivity check for the Settings "Test connection" button.

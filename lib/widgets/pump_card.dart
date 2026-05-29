@@ -59,11 +59,16 @@ class PumpCard extends StatelessWidget {
                 Icon(Icons.history, size: 18,
                     color: theme.colorScheme.outline),
                 const SizedBox(width: 8),
-                Text(
-                  lastWatered == null
-                      ? 'Last watered: never'
-                      : 'Last watered: ${DateFormatting.lastWatered(lastWatered)}',
-                  style: theme.textTheme.bodySmall,
+                // Expanded so a long "last watered" label wraps/ellipsizes
+                // inside the card instead of overflowing past its right edge.
+                Expanded(
+                  child: Text(
+                    lastWatered == null
+                        ? 'Last watered: never'
+                        : 'Last watered: ${DateFormatting.lastWatered(lastWatered)}',
+                    style: theme.textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -106,7 +111,11 @@ class PumpCard extends StatelessWidget {
                       label: const Text('Stop'),
                     )
                   : FilledButton.icon(
-                      onPressed: () => context.read<AppState>().water(pump),
+                      // Disabled (null onPressed) when the Pi is unreachable,
+                      // so watering can't be started without a connection.
+                      onPressed: state.connected
+                          ? () => context.read<AppState>().water(pump)
+                          : null,
                       icon: const Icon(Icons.play_arrow),
                       label: const Text('Water now'),
                     ),
