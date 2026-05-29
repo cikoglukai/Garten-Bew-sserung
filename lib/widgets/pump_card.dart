@@ -82,23 +82,34 @@ class PumpCard extends StatelessWidget {
                       .updatePump(pump.copyWith(durationSeconds: v.round())),
             ),
             const SizedBox(height: 4),
-            // Action button. While watering it's disabled and shows a spinner;
-            // otherwise it triggers AppState.water(pump).
+            // Action button. While watering it turns into a Stop button (with a
+            // spinner) that shuts the pump off early; otherwise it triggers
+            // AppState.water(pump).
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: watering
-                    ? null
-                    : () => context.read<AppState>().water(pump),
-                icon: watering
-                    ? const SizedBox(
+              child: watering
+                  ? FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: theme.colorScheme.error,
+                        foregroundColor: theme.colorScheme.onError,
+                      ),
+                      onPressed: () =>
+                          context.read<AppState>().stopWatering(pump),
+                      icon: const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.play_arrow),
-                label: Text(watering ? 'Watering…' : 'Water now'),
-              ),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      label: const Text('Stop'),
+                    )
+                  : FilledButton.icon(
+                      onPressed: () => context.read<AppState>().water(pump),
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Water now'),
+                    ),
             ),
             // Last status line, if any. Coloured red on error, accent otherwise
             // — read straight off PumpStatus.isError, no string parsing.

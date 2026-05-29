@@ -21,10 +21,16 @@ class SshResult {
 class SshService {
   /// Opens a connection and runs [command]. The connection is closed before
   /// returning so each action is self-contained.
+  ///
+  /// [registerCancel], if given, is invoked once the command is running with a
+  /// callback that tears the connection down. Calling it aborts the in-flight
+  /// command so `run` returns promptly instead of waiting out [timeout] — used
+  /// to stop a long watering early.
   static Future<SshResult> run(
     SshConfig config,
     String command, {
     Duration timeout = const Duration(seconds: 120),
+    void Function(void Function() cancel)? registerCancel,
   }) async {
     // Declared outside the try so the finally block can always close them,
     // even if connecting throws partway through.
@@ -47,6 +53,14 @@ class SshService {
 
       // 3. Run the command and collect stdout/stderr bytes as they stream in.
       final session = await client.execute(command);
+
+      // Hand the caller a way to abort this session. Closing the connection
+      // makes the `session.done` await below throw, which the catch turns into
+      // a failure result — the caller decides what that means.
+      registerCancel?.call(() {
+        client?.close();
+        socket?.close();
+      });
       final stdout = <int>[];
       final stderr = <int>[];
       session.stdout.listen(stdout.addAll);

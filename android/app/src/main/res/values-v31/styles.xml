@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ uses the SplashScreen API: it ignores windowBackground and
+         centers windowSplashScreenAnimatedIcon (falling back to the launcher
+         icon if unset). Point it at the watering can so the Flutter logo no
+         longer appears. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@color/splash_green</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/watering_can</item>
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>

@@ -5,6 +5,7 @@ import '../models/pump.dart';
 import '../state/app_state.dart';
 import '../widgets/no_stretch_scroll_behavior.dart';
 import '../widgets/pump_card.dart';
+import '../widgets/watering_can_loader.dart';
 import '../widgets/weather_card.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
@@ -20,28 +21,39 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        // While loading, tint the header to match the green splash backdrop.
+        backgroundColor: state.loaded ? null : const Color(0xFF2E7D32),
+        foregroundColor: state.loaded ? null : Colors.white,
         title: const Text('Garden Watering'),
-        actions: [
-          // Top-right: open the history calendar and the settings page.
-          IconButton(
-            icon: const Icon(Icons.calendar_month),
-            tooltip: 'Watering history',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const HistoryScreen()),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Settings',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
-          ),
-        ],
+        // Hide the navigation actions until loading finishes.
+        actions: state.loaded
+            ? [
+                // Top-right: open the history calendar and the settings page.
+                IconButton(
+                  icon: const Icon(Icons.calendar_month),
+                  tooltip: 'Watering history',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  tooltip: 'Settings',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  ),
+                ),
+              ]
+            : null,
       ),
-      // Show a spinner until AppState.load() has finished reading from disk.
+      // Show the filling watering can until AppState.load() has finished
+      // reading from disk, on a natural green backdrop.
       body: !state.loaded
-          ? const Center(child: CircularProgressIndicator())
+          ? Container(
+              color: const Color(0xFF2E7D32),
+              alignment: Alignment.center,
+              child: const WateringCanLoader(label: 'Loading…'),
+            )
           : Column(
               children: [
                 // If there's no Pi configured yet, show a tappable warning

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Watering can silhouette used on the native launch splash, matching the
+     in-app WateringCanLoader. Drawn in a 100x100 viewport. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- Can body (tapered tub). -->
+    <path
+        android:fillColor="#E8F5E9"
+        android:pathData="M33,43 L79,43 L72,90 Q71,94 66,94 L46,94 Q41,94 40,90 Z" />
+    <!-- Spout rising up to the left. -->
+    <path
+        android:fillColor="#E8F5E9"
+        android:pathData="M34,50 L11,31 L6,37 L30,59 Z" />
+    <!-- Sprinkler rose cap on the spout's end. -->
+    <path
+        android:fillColor="#E8F5E9"
+        android:pathData="M3,33 L15,25 L19,31 L7,39 Z" />
+    <!-- Handle arching over the top. -->
+    <path
+        android:fillColor="#E8F5E9"
+        android:pathData="M43,44 Q56,20 77,44 L71,44 Q56,28 49,44 Z" />
+</vector>

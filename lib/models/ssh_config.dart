@@ -7,6 +7,12 @@ class SshConfig {
   static const defaultCommandTemplate =
       'gpio -g mode {pin} out && gpio -g write {pin} 1 && sleep {duration} && gpio -g write {pin} 0';
 
+  /// Default command run on the Pi to stop a pump early, used until one is
+  /// saved. Forces the pin low immediately so the pump shuts off even while
+  /// the original watering command is still sleeping. {pin} is substituted by
+  /// [buildStopCommand].
+  static const defaultStopCommandTemplate = 'gpio -g write {pin} 0';
+
   String host;
   int port;
   String username;
@@ -17,12 +23,17 @@ class SshConfig {
   ///   {duration} -> the watering duration in seconds
   String commandTemplate;
 
+  /// Shell command run on the Pi to stop a pump mid-watering. Supports the
+  /// {pin} placeholder (the watering duration is irrelevant when stopping).
+  String stopCommandTemplate;
+
   SshConfig({
     this.host = '',
     this.port = 22,
     this.username = 'pi',
     this.password = '',
     this.commandTemplate = defaultCommandTemplate,
+    this.stopCommandTemplate = defaultStopCommandTemplate,
   });
 
   /// Host + username are the minimum needed to attempt a connection; the UI
@@ -37,12 +48,19 @@ class SshConfig {
         .replaceAll('{duration}', '$duration');
   }
 
+  /// Builds the concrete stop command for a pump from the template. Called by
+  /// AppState.stopWatering() to shut a running pump off early.
+  String buildStopCommand({required int pin}) {
+    return stopCommandTemplate.replaceAll('{pin}', '$pin');
+  }
+
   SshConfig copyWith({
     String? host,
     int? port,
     String? username,
     String? password,
     String? commandTemplate,
+    String? stopCommandTemplate,
   }) {
     return SshConfig(
       host: host ?? this.host,
@@ -50,6 +68,7 @@ class SshConfig {
       username: username ?? this.username,
       password: password ?? this.password,
       commandTemplate: commandTemplate ?? this.commandTemplate,
+      stopCommandTemplate: stopCommandTemplate ?? this.stopCommandTemplate,
     );
   }
 
@@ -61,6 +80,7 @@ class SshConfig {
         'username': username,
         'password': password,
         'commandTemplate': commandTemplate,
+        'stopCommandTemplate': stopCommandTemplate,
       };
 
   factory SshConfig.fromJson(Map<String, dynamic> json) => SshConfig(
@@ -70,5 +90,8 @@ class SshConfig {
         password: json['password'] as String? ?? '',
         commandTemplate:
             json['commandTemplate'] as String? ?? defaultCommandTemplate,
+        // Older saves predate the stop command; fall back to the default.
+        stopCommandTemplate: json['stopCommandTemplate'] as String? ??
+            defaultStopCommandTemplate,
       );
 }

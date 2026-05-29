@@ -26,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _username;
   late TextEditingController _password;
   late TextEditingController _command;
+  late TextEditingController _stopCommand;
   late TextEditingController _weatherApiKey;
   late TextEditingController _weatherCity;
   bool _obscure = true; // hide the SSH password
@@ -43,6 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _username = TextEditingController(text: c.username);
     _password = TextEditingController(text: c.password);
     _command = TextEditingController(text: c.commandTemplate);
+    _stopCommand = TextEditingController(text: c.stopCommandTemplate);
     _weatherApiKey = TextEditingController(text: state.weatherConfig.apiKey);
     _weatherCity = TextEditingController(text: state.weatherConfig.city);
   }
@@ -55,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _username.dispose();
     _password.dispose();
     _command.dispose();
+    _stopCommand.dispose();
     _weatherApiKey.dispose();
     _weatherCity.dispose();
     super.dispose();
@@ -68,6 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         username: _username.text.trim(),
         password: _password.text,
         commandTemplate: _command.text.trim(),
+        stopCommandTemplate: _stopCommand.text.trim(),
       );
 
   WeatherConfig _currentWeatherConfig() => WeatherConfig(
@@ -213,6 +217,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               maxLines: 3,
               decoration: const InputDecoration(
                 labelText: 'Command template',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Run on the Pi to stop a pump early. Use {pin} for the GPIO pin.',
+              style: bodyStyle,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _stopCommand,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Stop command template',
                 border: OutlineInputBorder(),
               ),
             ),

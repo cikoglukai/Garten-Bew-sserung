@@ -52,6 +52,14 @@ class AppState extends ChangeNotifier {
   /// IDs of pumps that are currently watering. A Set gives O(1) isWatering().
   final Set<String> _watering = {};
 
+  /// Per-pump callback that aborts the in-flight SSH session, registered while
+  /// a pump is watering and cleared when it finishes. Used by stopWatering().
+  final Map<String, void Function()> _cancels = {};
+
+  /// IDs of pumps a manual stop is handling. water() checks this on completion
+  /// so it leaves the "Stopped" status alone and skips the history entry.
+  final Set<String> _stopRequested = {};
+
   /// Last status message per pump, shown on its card.
   final Map<String, PumpStatus> _status = {};
 
@@ -85,10 +93,15 @@ class AppState extends ChangeNotifier {
   /// Loads everything from disk on startup, then (if weather is configured)
   /// kicks off a first weather fetch. Called once from main().
   Future<void> load() async {
+    // Reading from disk takes only milliseconds, so without a floor the
+    // loading animation would flash by unseen. Hold it for at least one fill
+    // cycle of the watering can so the splash actually registers.
+    final minSplash = Future<void>.delayed(const Duration(milliseconds: 1800));
     config = await _settings.loadConfig();
     weatherConfig = await _settings.loadWeatherConfig();
     pumps = await _settings.loadPumps();
     history = await _settings.loadHistory();
+    await minSplash;
     loaded = true;
     notifyListeners();
     if (weatherConfig.isComplete) {
@@ -180,7 +193,17 @@ class AppState extends ChangeNotifier {
       config,
       command,
       timeout: Duration(seconds: pump.durationSeconds + 30),
+      // Let stopWatering() abort this session before the duration is up.
+      registerCancel: (cancel) => _cancels[pump.id] = cancel,
     );
+    _cancels.remove(pump.id);
+
+    // A manual stop already cleared _watering, set the "Stopped" status and
+    // (deliberately) skipped history — leave all of that as-is.
+    if (_stopRequested.remove(pump.id)) {
+      notifyListeners();
+      return result;
+    }
 
     // Done: clear the running flag and record the outcome on the card.
     _watering.remove(pump.id);
@@ -208,6 +231,41 @@ class AppState extends ChangeNotifier {
 
     notifyListeners();
     return result;
+  }
+
+  /// Stops a pump that's currently watering, before its duration is up.
+  ///
+  /// Flips the card out of its watering state straight away, sends the stop
+  /// command (which forces the GPIO pin low so the pump shuts off even though
+  /// the original watering command is still sleeping on the Pi), then aborts
+  /// that lingering SSH session. The watering's own future sees _stopRequested
+  /// and bows out without touching the status or logging history.
+  Future<void> stopWatering(Pump pump) async {
+    // Nothing to stop if this pump isn't running.
+    if (!_watering.contains(pump.id)) return;
+
+    // Hand control of this pump's status/history to us, and update the card now.
+    _stopRequested.add(pump.id);
+    _watering.remove(pump.id);
+    _status[pump.id] = const PumpStatus('Stopped');
+    notifyListeners();
+
+    // Force the pin low on the Pi so water actually stops flowing now.
+    final result = await SshService.run(
+      config,
+      config.buildStopCommand(pin: pump.gpioPin),
+      timeout: const Duration(seconds: 15),
+    );
+
+    // Abort the still-open watering session so its run() returns promptly
+    // instead of holding the connection for the rest of the duration.
+    _cancels.remove(pump.id)?.call();
+
+    // Surface a stop that didn't take — the pump may still be running.
+    if (!result.success) {
+      _status[pump.id] = PumpStatus('Stop failed: ${result.error}', isError: true);
+      notifyListeners();
+    }
   }
 
   /// Waters every pump that isn't already running, one after another so the
