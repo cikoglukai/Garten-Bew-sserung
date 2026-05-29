@@ -45,10 +45,10 @@ class Pump {
   /// The five pumps created on first launch. GPIO pins are sensible defaults
   /// (BCM numbering) that you can change in Settings.
   static List<Pump> defaults() => [
-        Pump(id: 'pump_1', name: 'Pump 1', gpioPin: 17),
-        Pump(id: 'pump_2', name: 'Pump 2', gpioPin: 18),
-        Pump(id: 'pump_3', name: 'Pump 3', gpioPin: 27),
-        Pump(id: 'pump_4', name: 'Pump 4', gpioPin: 22),
-        Pump(id: 'pump_5', name: 'Pump 5', gpioPin: 23),
+        Pump(id: 'pump_1', name: 'Pump 1', gpioPin: 26),
+        Pump(id: 'pump_2', name: 'Pump 2', gpioPin: 19),
+        Pump(id: 'pump_3', name: 'Pump 3', gpioPin: 13),
+        Pump(id: 'pump_4', name: 'Pump 4', gpioPin: 6),
+        Pump(id: 'pump_5', name: 'Pump 5', gpioPin: 5),
       ];
 }

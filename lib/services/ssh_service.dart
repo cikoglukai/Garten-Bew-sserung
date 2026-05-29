@@ -69,14 +69,20 @@ class SshService {
       // 4. Wait for it to finish (bounded by [timeout], which the caller sizes
       //    to the watering duration), then read the exit code.
       await session.done.timeout(timeout);
-      final code = session.exitCode ?? -1;
+      final code = session.exitCode;
 
       final stderrText = utf8.decode(stderr, allowMalformed: true).trim();
+      // A null exit code means the channel closed cleanly without the server
+      // sending an exit-status — the command still ran. Only treat it as a
+      // failure if there's actual stderr to report; otherwise count it as
+      // success (this is what the quick stop command hits, since its session
+      // races with the watering session being torn down).
+      final success = code == 0 || (code == null && stderrText.isEmpty);
       return SshResult(
-        success: code == 0,
+        success: success,
         output: utf8.decode(stdout, allowMalformed: true).trim(),
         // On failure prefer stderr; fall back to a generic exit-code message.
-        error: code == 0
+        error: success
             ? ''
             : (stderrText.isEmpty
                 ? 'Command exited with code $code'

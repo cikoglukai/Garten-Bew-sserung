@@ -61,6 +61,11 @@ class AppState extends ChangeNotifier {
   /// so it leaves the "Stopped" status alone and skips the history entry.
   final Set<String> _stopRequested = {};
 
+  /// True while waterAll() is iterating the pumps. Set to false by stopWatering()
+  /// to abort the whole sequence instead of just letting it advance to the next
+  /// pump after the current one is stopped.
+  bool _waterAllRunning = false;
+
   /// Last status message per pump, shown on its card.
   final Map<String, PumpStatus> _status = {};
 
@@ -242,6 +247,10 @@ class AppState extends ChangeNotifier {
     // Nothing to stop if this pump isn't running.
     if (!_watering.contains(pump.id)) return;
 
+    // Stopping the running pump also stops the whole "Water all" sequence, so
+    // it doesn't carry on to the next zone after this one shuts off.
+    _waterAllRunning = false;
+
     // Hand control of this pump's status/history to us, and update the card now.
     _stopRequested.add(pump.id);
     _watering.remove(pump.id);
@@ -272,12 +281,19 @@ class AppState extends ChangeNotifier {
   /// Waters every pump that isn't already running, one after another so the
   /// Pi only handles a single SSH session at a time. Iterates a copy so the
   /// list can't change under us mid-loop.
+  ///
+  /// Hitting Stop on the running pump clears [_waterAllRunning], which breaks
+  /// the loop so the sequence stops entirely instead of advancing to the next
+  /// pump.
   Future<void> waterAll() async {
+    _waterAllRunning = true;
     for (final pump in List<Pump>.from(pumps)) {
+      if (!_waterAllRunning) break;
       if (!_watering.contains(pump.id)) {
         await water(pump);
       }
     }
+    _waterAllRunning = false;
   }
 
   /// One-off connectivity check for the Settings "Test connection" button.

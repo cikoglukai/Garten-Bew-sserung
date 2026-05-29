@@ -5,13 +5,13 @@ class SshConfig {
   /// Turns a GPIO pin on, waits, then turns it off. {pin} and {duration} are
   /// substituted per pump by [buildCommand].
   static const defaultCommandTemplate =
-      'gpio -g mode {pin} out && gpio -g write {pin} 1 && sleep {duration} && gpio -g write {pin} 0';
+      'raspi-gpio set {pin} op && raspi-gpio set {pin} dl && sleep {duration} && raspi-gpio set {pin} dh';
 
   /// Default command run on the Pi to stop a pump early, used until one is
   /// saved. Forces the pin low immediately so the pump shuts off even while
   /// the original watering command is still sleeping. {pin} is substituted by
   /// [buildStopCommand].
-  static const defaultStopCommandTemplate = 'gpio -g write {pin} 0';
+  static const defaultStopCommandTemplate = 'raspi-gpio set {pin} dh';
 
   String host;
   int port;
