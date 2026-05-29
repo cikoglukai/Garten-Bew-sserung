@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Watering can silhouette used on the native launch splash, matching the
-     in-app WateringCanLoader. Drawn in a 100x100 viewport. -->
+<!-- Full-size watering can, used on the launch splash (which has no icon mask,
+     so the can can fill the frame). Drawn in a 100x100 viewport. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="96dp"
     android:height="96dp"

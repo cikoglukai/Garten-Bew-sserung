@@ -33,7 +33,8 @@ class AppState extends ChangeNotifier {
   WeatherConfig weatherConfig = WeatherConfig();
   List<Pump> pumps = [];
 
-  /// Flips true once load() finishes; the home screen shows a spinner until then.
+  /// Flips true once load() finishes; the home screen shows a plain green
+  /// splash (matching the native launch splash) until then.
   bool loaded = false;
 
   /// Log of completed waterings, newest first. Used for the calendar and the
@@ -83,25 +84,22 @@ class AppState extends ChangeNotifier {
   /// calendar both as the day-cell event loader and for the selected-day list.
   List<WateringEvent> eventsForDay(DateTime day) {
     return history
-        .where((e) =>
-            e.timestamp.year == day.year &&
-            e.timestamp.month == day.month &&
-            e.timestamp.day == day.day)
+        .where(
+          (e) =>
+              e.timestamp.year == day.year &&
+              e.timestamp.month == day.month &&
+              e.timestamp.day == day.day,
+        )
         .toList();
   }
 
   /// Loads everything from disk on startup, then (if weather is configured)
   /// kicks off a first weather fetch. Called once from main().
   Future<void> load() async {
-    // Reading from disk takes only milliseconds, so without a floor the
-    // loading animation would flash by unseen. Hold it for at least one fill
-    // cycle of the watering can so the splash actually registers.
-    final minSplash = Future<void>.delayed(const Duration(milliseconds: 1800));
     config = await _settings.loadConfig();
     weatherConfig = await _settings.loadWeatherConfig();
     pumps = await _settings.loadPumps();
     history = await _settings.loadHistory();
-    await minSplash;
     loaded = true;
     notifyListeners();
     if (weatherConfig.isComplete) {
@@ -263,7 +261,10 @@ class AppState extends ChangeNotifier {
 
     // Surface a stop that didn't take — the pump may still be running.
     if (!result.success) {
-      _status[pump.id] = PumpStatus('Stop failed: ${result.error}', isError: true);
+      _status[pump.id] = PumpStatus(
+        'Stop failed: ${result.error}',
+        isError: true,
+      );
       notifyListeners();
     }
   }

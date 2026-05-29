@@ -5,7 +5,6 @@ import '../models/pump.dart';
 import '../state/app_state.dart';
 import '../widgets/no_stretch_scroll_behavior.dart';
 import '../widgets/pump_card.dart';
-import '../widgets/watering_can_loader.dart';
 import '../widgets/weather_card.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
@@ -19,83 +18,74 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
 
+    // Until load() finishes reading from disk (a few milliseconds), keep a
+    // plain green screen that matches the native launch splash, so the two
+    // read as a single, continuous splash.
+    if (!state.loaded) {
+      return const Scaffold(backgroundColor: Color(0xFF2E7D32));
+    }
+
     return Scaffold(
       appBar: AppBar(
-        // While loading, tint the header to match the green splash backdrop.
-        backgroundColor: state.loaded ? null : const Color(0xFF2E7D32),
-        foregroundColor: state.loaded ? null : Colors.white,
         title: const Text('Garden Watering'),
-        // Hide the navigation actions until loading finishes.
-        actions: state.loaded
-            ? [
-                // Top-right: open the history calendar and the settings page.
-                IconButton(
-                  icon: const Icon(Icons.calendar_month),
-                  tooltip: 'Watering history',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const HistoryScreen()),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  tooltip: 'Settings',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  ),
-                ),
-              ]
-            : null,
+        actions: [
+          // Top-right: open the history calendar and the settings page.
+          IconButton(
+            icon: const Icon(Icons.calendar_month),
+            tooltip: 'Watering history',
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const HistoryScreen())),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+          ),
+        ],
       ),
-      // Show the filling watering can until AppState.load() has finished
-      // reading from disk, on a natural green backdrop.
-      body: !state.loaded
-          ? Container(
-              color: const Color(0xFF2E7D32),
-              alignment: Alignment.center,
-              child: const WateringCanLoader(label: 'Loading…'),
-            )
-          : Column(
-              children: [
-                // If there's no Pi configured yet, show a tappable warning
-                // banner above the list that jumps to Settings.
-                if (!state.config.isComplete)
-                  Material(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    child: ListTile(
-                      leading: const Icon(Icons.warning_amber),
-                      title: const Text('No Raspberry Pi configured'),
-                      subtitle:
-                          const Text('Tap to set the connection details.'),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const SettingsScreen()),
-                      ),
-                    ),
-                  ),
-                Expanded(
-                  child: ScrollConfiguration(
-                    behavior: const NoStretchScrollBehavior(),
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      children: [
-                        const WeatherCard(),
-                        // Enabled only when there's somewhere to send commands,
-                        // pumps exist, and nothing is currently running.
-                        _WaterAllButton(
-                          enabled: state.config.isComplete &&
-                              state.pumps.isNotEmpty &&
-                              !state.anyWatering,
-                          onPressed: () =>
-                              context.read<AppState>().waterAll(),
-                        ),
-                        // The pumps, two per row.
-                        ..._pumpRows(state.pumps),
-                      ],
-                    ),
-                  ),
+      body: Column(
+        children: [
+          // If there's no Pi configured yet, show a tappable warning
+          // banner above the list that jumps to Settings.
+          if (!state.config.isComplete)
+            Material(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: ListTile(
+                leading: const Icon(Icons.warning_amber),
+                title: const Text('No Raspberry Pi configured'),
+                subtitle: const Text('Tap to set the connection details.'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 ),
-              ],
+              ),
             ),
+          Expanded(
+            child: ScrollConfiguration(
+              behavior: const NoStretchScrollBehavior(),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  const WeatherCard(),
+                  // Enabled only when there's somewhere to send commands,
+                  // pumps exist, and nothing is currently running.
+                  _WaterAllButton(
+                    enabled:
+                        state.config.isComplete &&
+                        state.pumps.isNotEmpty &&
+                        !state.anyWatering,
+                    onPressed: () => context.read<AppState>().waterAll(),
+                  ),
+                  // The pumps, two per row.
+                  ..._pumpRows(state.pumps),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
